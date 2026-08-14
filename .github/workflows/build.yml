@@ -27,7 +27,7 @@ jobs:
           cd ~/build_toolchain/7z2602-linux-x64
           wget -nv https://github.com/ip7z/7zip/releases/download/26.02/7z2602-linux-x64.tar.xz
           tar -xJf ./7z2602-linux-x64.tar.xz
-          ln -s ./7zzs ~/.local/bin/7za
+          ln -s "$(realpath ./7zzs)" ~/.local/bin/7za
           
           echo "Downloading HDiffPatch..."
           mkdir -p ~/build_toolchain/hdiffpatch
