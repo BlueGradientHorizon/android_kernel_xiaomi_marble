@@ -18,12 +18,6 @@ jobs:
           
           mkdir -p ~/build_toolchain
           
-          echo "Downloading Google clang 12.0.5..."
-          mkdir -p ~/build_toolchain/clang-r416183b-12.0.5
-          cd ~/build_toolchain/clang-r416183b-12.0.5
-          aria2c https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/428d18d9732aa7ebfcaed87a582d86155db878d4/clang-r416183b.tar.gz -o ./clang-r416183b.tar.gz
-          tar -xzf ./clang-r416183b.tar.gz
-          
           echo "Downloading Slim LLVM..."
           cd ~/build_toolchain
           aria2c https://mirrors.edge.kernel.org/pub/tools/llvm/files/llvm-22.1.8-x86_64.tar.xz
@@ -87,7 +81,6 @@ jobs:
           echo '<?xml version="1.0" encoding="UTF-8"?>' > ./.repo/local_manifests/custom.xml
           echo '<manifest>' >> ./.repo/local_manifests/custom.xml
           echo '    <remove-project path="common" name="kernel/common" />' >> ./.repo/local_manifests/custom.xml
-          echo '    <remove-project path="prebuilts-master/clang/host/linux-x86" name="platform/prebuilts/clang/host/linux-x86" />' >> ./.repo/local_manifests/custom.xml
           echo '    <remove-project path="hikey-modules" name="kernel/hikey-modules" />' >> ./.repo/local_manifests/custom.xml
           echo '    <remove-project path="common-modules/virtual-device" name="kernel/common-modules/virtual-device" />' >> ./.repo/local_manifests/custom.xml
           echo '</manifest>' >> ./.repo/local_manifests/custom.xml

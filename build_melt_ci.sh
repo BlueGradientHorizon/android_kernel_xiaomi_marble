@@ -79,7 +79,7 @@ export KBUILD_BUILD_HOST="ubuntu"
 export KBUILD_BUILD_USER="github"
 
 # 编译内核模块只能使用 Google clang 12.0.5
-CLANG_PATH=~/build_toolchain/clang-r416183b-12.0.5/bin
+CLANG_PATH=~/build_toolchain/android-kernel/prebuilts-master/clang/host/linux-x86/clang-r416183b/bin
 # 编译 GKI 则可用使用更先进的 clang
 if [ "$make_target" == "Image" ]; then
 	echo -e "${gre}Building kernel image with Slim LLVM 22.1.8 $white"
