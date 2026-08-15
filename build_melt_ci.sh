@@ -633,7 +633,7 @@ echo -e "$gre << Build completed in $(($t_diff / 60)) minutes and $(($t_diff % 6
 
 if [ -f ${KDIR}/KMI_function_symbols_test.py ]; then
 	echo "Checking for mismatching function symbol crc values..."
-	python3 ${KDIR}/KMI_function_symbols_test.py
+	python3 ${KDIR}/KMI_function_symbols_test.py || exit $?
 fi
 
 if $KMI_STRICT_MODE; then
@@ -642,6 +642,8 @@ if $KMI_STRICT_MODE; then
 		echo "Comparing the KMI and the module symvers..."
 		if ${GKI_BUILD_TOOLS}/abi/compare_to_symbol_list ${KDIR}/out/Module.symvers ${TMP_ABI_SYMBOLLIST_RAW}; then
 			echo "No mismatching items found. Good job!"
+		else
+			exit $?
 		fi
 	fi
 

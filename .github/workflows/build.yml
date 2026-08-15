@@ -24,19 +24,24 @@ jobs:
           tar -xJf ./llvm-22.1.8-x86_64.tar.xz
           
           echo "Downloading 7za..."
-          mkdir -p ~/build_toolchain/7z2602-linux-x64
-          cd ~/build_toolchain/7z2602-linux-x64
+          mkdir -p /tmp/7z2602-linux-x64
+          cd /tmp/7z2602-linux-x64
           wget -nv https://github.com/ip7z/7zip/releases/download/26.02/7z2602-linux-x64.tar.xz
           tar -xJf ./7z2602-linux-x64.tar.xz
-          ln -s "$(realpath ./7zzs)" ~/.local/bin/7za
+          cp ./7zzs ~/.local/bin/7za
+          chmod +x ~/.local/bin/7za
+          cd ~
+          rm -rf /tmp/7z2602-linux-x64
           
           echo "Downloading HDiffPatch..."
-          mkdir -p ~/build_toolchain/hdiffpatch
-          cd ~/build_toolchain/hdiffpatch
+          mkdir -p /tmp/hdiffpatch
+          cd /tmp/hdiffpatch
           wget -nv https://github.com/sisong/HDiffPatch/releases/download/v4.12.2/hdiffpatch_v4.12.2_bin_linux64.zip
           7za x ./hdiffpatch_v4.12.2_bin_linux64.zip
           cp ./linux64/hdiffz  ~/.local/bin/
           cp ./linux64/hpatchz ~/.local/bin/
+          cd ~
+          rm -rf /tmp/hdiffpatch
           
           echo "Downloading erofs-tools..."
           cd ~/.local/bin
@@ -283,6 +288,7 @@ jobs:
       - name: Build xiaomi_touch modules of LineageOS team
         run: |
           cd $GITHUB_WORKSPACE
+          # Same as merge melt-rebase-los-xiaomi-touch branch
           curl https://github.com/Pzqqt/android_kernel_xiaomi_marble/compare/617fd74a5da37ea930ac09a916e12ce4efdc7f23..melt-rebase-los-xiaomi-touch.diff | git apply
           ./build_melt_ci.sh --noccache --noclean
           cp -f ~/Melt_marble_out/alt_kernel_modules/xiaomi_touch.ko          ~/AnyKernel3/_modules_hyperos/_alt/xiaomi_touch_los/xiaomi_touch.ko
@@ -312,7 +318,7 @@ jobs:
         run: |
           cd ~/AnyKernel3
           python3 ./make_package.py "ci-${SHORT_SHA}"
-      - name: Collect artifacts
+      - name: Collect non-essential artifacts
         run: |
           mkdir -p ~/dist
           
