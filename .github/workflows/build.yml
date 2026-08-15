@@ -1,0 +1,331 @@
+name: Build Kernel
+
+on:
+  push:
+    branches: [melt-rebase_ci_test]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prepare the environment
+        run: |
+          [ -d ~/.local/bin ] || mkdir -p ~/.local/bin
+          
+          echo "SHORT_SHA=${GITHUB_SHA:0:12}" >> $GITHUB_ENV
+          
+          sudo apt install -y aria2 python3 python-is-python3 python3-rich python3-lxml
+          
+          mkdir -p ~/build_toolchain
+          
+          echo "Downloading Slim LLVM..."
+          cd ~/build_toolchain
+          aria2c https://mirrors.edge.kernel.org/pub/tools/llvm/files/llvm-22.1.8-x86_64.tar.xz
+          tar -xJf ./llvm-22.1.8-x86_64.tar.xz
+          
+          echo "Downloading 7za..."
+          mkdir -p /tmp/7z2602-linux-x64
+          cd /tmp/7z2602-linux-x64
+          wget -nv https://github.com/ip7z/7zip/releases/download/26.02/7z2602-linux-x64.tar.xz
+          tar -xJf ./7z2602-linux-x64.tar.xz
+          cp ./7zzs ~/.local/bin/7za
+          chmod +x ~/.local/bin/7za
+          cd ~
+          rm -rf /tmp/7z2602-linux-x64
+          
+          echo "Downloading HDiffPatch..."
+          mkdir -p /tmp/hdiffpatch
+          cd /tmp/hdiffpatch
+          wget -nv https://github.com/sisong/HDiffPatch/releases/download/v4.12.2/hdiffpatch_v4.12.2_bin_linux64.zip
+          7za x ./hdiffpatch_v4.12.2_bin_linux64.zip
+          cp ./linux64/hdiffz  ~/.local/bin/
+          cp ./linux64/hpatchz ~/.local/bin/
+          cd ~
+          rm -rf /tmp/hdiffpatch
+          
+          echo "Downloading erofs-tools..."
+          cd ~/.local/bin
+          wget -nv https://github.com/sekaiacg/erofs-tools/releases/download/v1.8.10-251217/erofs-utils-v1.8.10-gee46dd74-251217-Linux_x86_64.zip
+          7za x ./erofs-utils-v1.8.10-gee46dd74-251217-Linux_x86_64.zip
+          rm ./erofs-utils-v1.8.10-gee46dd74-251217-Linux_x86_64.zip
+          
+          echo "Downloading payload_extract..."
+          cd ~/.local/bin
+          wget -nv https://github.com/sekaiacg/payload_extract/releases/download/v1.3.1-260422/payload_extract-v1.3.1-260422-Linux_x86_64.zip
+          7za x ./payload_extract-v1.3.1-260422-Linux_x86_64.zip
+          rm ./payload_extract-v1.3.1-260422-Linux_x86_64.zip
+          
+          echo "Downloading magiskboot..."
+          cd ~/.local/bin
+          wget -nv https://github.com/topjohnwu/Magisk/releases/download/v30.7/Magisk-v30.7.apk
+          7za e -y ./Magisk-v30.7.apk lib/x86_64/libmagiskboot.so -o.
+          mv ./libmagiskboot.so ./magiskboot
+          rm ./Magisk-v30.7.apk
+          
+          echo "Downloading fdtget & fdtput..."
+          cd ~/.local/bin
+          wget -nv https://github.com/Pzqqt/android_kernel_xiaomi_marble/raw/96b440939928eed0cd91f9866e2e88ad0d996498/build-tools/fdtget
+          wget -nv https://github.com/Pzqqt/android_kernel_xiaomi_marble/raw/96b440939928eed0cd91f9866e2e88ad0d996498/build-tools/fdtput
+          
+          echo "Build dtp"
+          cd ~
+          git clone https://github.com/lyq1996/msm8998_offset_voltage.git -b TWRP --depth=1
+          cd ~/msm8998_offset_voltage/dtp_src
+          gcc ./dtp.c -o ~/.local/bin/dtp
+          
+          echo "Downloading repo..."
+          curl https://storage.googleapis.com/git-repo-downloads/repo > ~/.local/bin/repo
+          
+          chmod +x ~/.local/bin/*
+      - name: Clone kernel-build tools
+        run: |
+          mkdir -p ~/build_toolchain/android-kernel
+          cd ~/build_toolchain/android-kernel
+          repo init -u https://android.googlesource.com/kernel/manifest -b common-android12-5.10
+          mkdir -p ./.repo/local_manifests
+          echo '<?xml version="1.0" encoding="UTF-8"?>' > ./.repo/local_manifests/custom.xml
+          echo '<manifest>' >> ./.repo/local_manifests/custom.xml
+          echo '    <remove-project path="common" name="kernel/common" />' >> ./.repo/local_manifests/custom.xml
+          echo '    <remove-project path="hikey-modules" name="kernel/hikey-modules" />' >> ./.repo/local_manifests/custom.xml
+          echo '    <remove-project path="common-modules/virtual-device" name="kernel/common-modules/virtual-device" />' >> ./.repo/local_manifests/custom.xml
+          echo '</manifest>' >> ./.repo/local_manifests/custom.xml
+          repo sync -j4 -c --no-clone-bundle
+          
+          ln -s "$(realpath ./prebuilts/kernel-build-tools/linux-x86/bin/mkdtboimg.py)" ~/.local/bin/mkdtboimg.py
+          ln -s "$(realpath ./prebuilts/kernel-build-tools/linux-x86/bin/avbtool)"      ~/.local/bin/avbtool
+      - name: Clone AK3
+        run: |
+          cd ~
+          git clone https://github.com/Pzqqt/AnyKernel3.git -b Marble-Melt --depth=1
+      - name: Extract Xiaomi's prebuilt files from OS2.0.5.0.VMRCNXM
+        run: |
+          mkdir -p ~/img_OS2.0.5.0.VMRCNXM
+          cd ~/img_OS2.0.5.0.VMRCNXM
+          payload_extract -s -i "https://bkt-sgp-miui-ota-update-alisgp.oss-ap-southeast-1.aliyuncs.com/OS2.0.5.0.VMRCNXM/marble-ota_full-OS2.0.5.0.VMRCNXM-user-15.0-360119838b.zip" -X vendor_boot,vendor_dlkm -o .
+          
+          mkdir ~/img_OS2.0.5.0.VMRCNXM/vendor_boot
+          cd ~/img_OS2.0.5.0.VMRCNXM/vendor_boot
+          mv ../vendor_boot.img ./
+          magiskboot unpack -h ./vendor_boot.img || :
+          cd vendor_ramdisk
+          magiskboot cpio ./ramdisk.cpio extract
+          # \x00depends=pm8941-pwrkey,smem,msm_dma_iommu_mapping,qcom_iommu_util,qcom_rpmh,llcc-qcom,msm-mmrm,spmi-pmic-arb,pinctrl-msm,panel_event_notifier,qcom-scm,hdcp_qseecom,fsa4480-i2c,msm_ext_display,qcom_ipc_logging,altmode-glink,dwc3-msm,gh_msgq,gh_irq_lend,gh_rm_drv,gh_mem_notifier\x00
+          # ->
+          # \x00depends=pm8941-pwrkey,smem,msm_dma_iommu_mapping,qcom_iommu_util,qcom_rpmh,llcc-qcom,msm-mmrm,spmi-pmic-arb,pinctrl-msm,panel_event_notifier,qcom-scm,hdcp,fsa4480-i2c,msm_ext_display,qcom_ipc_logging,altmode-glink,dwc3-msm,gh_msgq,gh_irq_lend,gh_rm_drv,gh_mem_notifier\x00\x00\x00\x00\x00\x00\x00\x00\x00
+          magiskboot hexpatch ./lib/modules/msm_drm.ko \
+            00646570656E64733D706D383934312D7077726B65792C736D656D2C6D736D5F646D615F696F6D6D755F6D617070696E672C71636F6D5F696F6D6D755F7574696C2C71636F6D5F72706D682C6C6C63632D71636F6D2C6D736D2D6D6D726D2C73706D692D706D69632D6172622C70696E6374726C2D6D736D2C70616E656C5F6576656E745F6E6F7469666965722C71636F6D2D73636D2C686463705F71736565636F6D2C667361343438302D6932632C6D736D5F6578745F646973706C61792C71636F6D5F6970635F6C6F6767696E672C616C746D6F64652D676C696E6B2C647763332D6D736D2C67685F6D7367712C67685F6972715F6C656E642C67685F726D5F6472762C67685F6D656D5F6E6F74696669657200 \
+            00646570656e64733d706d383934312d7077726b65792c736d656d2c6d736d5f646d615f696f6d6d755f6d617070696e672c71636f6d5f696f6d6d755f7574696c2c71636f6d5f72706d682c6c6c63632d71636f6d2c6d736d2d6d6d726d2c73706d692d706d69632d6172622c70696e6374726c2d6d736d2c70616e656c5f6576656e745f6e6f7469666965722c71636f6d2d73636d2c686463702c667361343438302d6932632c6d736d5f6578745f646973706c61792c71636f6d5f6970635f6c6f6767696e672c616c746d6f64652d676c696e6b2c647763332d6d736d2c67685f6d7367712c67685f6972715f6c656e642c67685f726d5f6472762c67685f6d656d5f6e6f746966696572000000000000000000
+          for f in bootinfo.ko \
+                   cpq.ko \
+                   goodix_core.ko \
+                   hwid.ko \
+                   ir-spi.ko \
+                   metis.ko \
+                   mi_freqwdg.ko \
+                   mi_memory.ko \
+                   mi_power.ko \
+                   mi_schedule.ko \
+                   mi_thermal_interface.ko \
+                   msm_drm.ko \
+                   mtdoops.ko \
+                   perf_helper.ko \
+                   pm8941-pwrkey.ko \
+                   soc_sleep_stats.ko \
+                   subsystem_sleep_stats.ko \
+                   swinfo.ko ufs_qcom.ko \
+                   ufshcd-crypto-qti.ko; do
+            cp ./lib/modules/$f ~/AnyKernel3/_modules_hyperos/_vendor_boot_modules/
+          done
+          cp -f ./lib/modules/zram.ko     ~/AnyKernel3/_modules_hyperos/_alt/MI-zram.ko
+          cp -f ./lib/modules/zsmalloc.ko ~/AnyKernel3/_modules_hyperos/_alt/MI-zsmalloc.ko
+          
+          mkdir ~/img_OS2.0.5.0.VMRCNXM/vendor_dlkm
+          cd ~/img_OS2.0.5.0.VMRCNXM/vendor_dlkm
+          mv ../vendor_dlkm.img ./
+          extract.erofs -s -i ./vendor_dlkm.img -x -o .
+          cd ./vendor_dlkm
+          # \x00depends=pm8941-pwrkey,smem,msm_dma_iommu_mapping,qcom_iommu_util,qcom_rpmh,llcc-qcom,msm-mmrm,spmi-pmic-arb,pinctrl-msm,panel_event_notifier,qcom-scm,hdcp_qseecom,fsa4480-i2c,msm_ext_display,qcom_ipc_logging,altmode-glink,dwc3-msm,gh_msgq,gh_irq_lend,gh_rm_drv,gh_mem_notifier\x00
+          # ->
+          # \x00depends=pm8941-pwrkey,smem,msm_dma_iommu_mapping,qcom_iommu_util,qcom_rpmh,llcc-qcom,msm-mmrm,spmi-pmic-arb,pinctrl-msm,panel_event_notifier,qcom-scm,hdcp,fsa4480-i2c,msm_ext_display,qcom_ipc_logging,altmode-glink,dwc3-msm,gh_msgq,gh_irq_lend,gh_rm_drv,gh_mem_notifier\x00\x00\x00\x00\x00\x00\x00\x00\x00
+          magiskboot hexpatch ./lib/modules/msm_drm.ko \
+            00646570656E64733D706D383934312D7077726B65792C736D656D2C6D736D5F646D615F696F6D6D755F6D617070696E672C71636F6D5F696F6D6D755F7574696C2C71636F6D5F72706D682C6C6C63632D71636F6D2C6D736D2D6D6D726D2C73706D692D706D69632D6172622C70696E6374726C2D6D736D2C70616E656C5F6576656E745F6E6F7469666965722C71636F6D2D73636D2C686463705F71736565636F6D2C667361343438302D6932632C6D736D5F6578745F646973706C61792C71636F6D5F6970635F6C6F6767696E672C616C746D6F64652D676C696E6B2C647763332D6D736D2C67685F6D7367712C67685F6972715F6C656E642C67685F726D5F6472762C67685F6D656D5F6E6F74696669657200 \
+            00646570656e64733d706d383934312d7077726b65792c736d656d2c6d736d5f646d615f696f6d6d755f6d617070696e672c71636f6d5f696f6d6d755f7574696c2c71636f6d5f72706d682c6c6c63632d71636f6d2c6d736d2d6d6d726d2c73706d692d706d69632d6172622c70696e6374726c2d6d736d2c70616e656c5f6576656e745f6e6f7469666965722c71636f6d2d73636d2c686463702c667361343438302d6932632c6d736d5f6578745f646973706c61792c71636f6d5f6970635f6c6f6767696e672c616c746d6f64652d676c696e6b2c647763332d6d736d2c67685f6d7367712c67685f6972715f6c656e642c67685f726d5f6472762c67685f6d656d5f6e6f746966696572000000000000000000
+          for f in binder_gki.ko \
+                   binderinfo.ko \
+                   camera.ko \
+                   cpq.ko \
+                   hardwareinfo.ko \
+                   ir-spi.ko \
+                   mi_freqwdg.ko \
+                   mi_thermal_interface.ko \
+                   miicmpfilter.ko \
+                   millet_binder.ko \
+                   millet_core.ko \
+                   millet_hs.ko \
+                   millet_oem_cgroup.ko \
+                   millet_pkg.ko \
+                   millet_sig.ko \
+                   minet.ko \
+                   miwill.ko \
+                   miwill_mode_redudancy.ko \
+                   msm_drm.ko \
+                   mtdoops.ko \
+                   perf_helper.ko \
+                   pm8941-pwrkey.ko \
+                   sla.ko \
+                   soc_sleep_stats.ko \
+                   subsystem_sleep_stats.ko; do
+            cp ./lib/modules/$f ~/AnyKernel3/_modules_hyperos/_vendor_dlkm_modules/
+          done
+      - name: Extract Xiaomi's prebuilt files from OS2.0.201.0.VMRCNXM
+        run: |
+          mkdir -p ~/img_OS2.0.201.0.VMRCNXM
+          cd ~/img_OS2.0.201.0.VMRCNXM
+          payload_extract -s -i "https://bkt-sgp-miui-ota-update-alisgp.oss-ap-southeast-1.aliyuncs.com/OS2.0.201.0.VMRCNXM/marble-ota_full-OS2.0.201.0.VMRCNXM-user-15.0-d7bf073131.zip" -X vendor_boot,vendor_dlkm,dtbo -o .
+          
+          mkdir ~/img_OS2.0.201.0.VMRCNXM/vendor_boot
+          cd ~/img_OS2.0.201.0.VMRCNXM/vendor_boot
+          mv ../vendor_boot.img ./
+          magiskboot unpack -h ./vendor_boot.img || :
+          cd vendor_ramdisk
+          magiskboot cpio ./ramdisk.cpio extract
+          cp ./lib/modules/migt.ko ~/AnyKernel3/_modules_hyperos/_vendor_boot_modules/
+          
+          mkdir ~/img_OS2.0.201.0.VMRCNXM/vendor_dlkm
+          cd ~/img_OS2.0.201.0.VMRCNXM/vendor_dlkm
+          mv ../vendor_dlkm.img ./
+          extract.erofs -s -i ./vendor_dlkm.img -x -o .
+          cd ./vendor_dlkm
+          cp ./lib/modules/migt.ko ~/AnyKernel3/_modules_hyperos/_vendor_dlkm_modules/
+      - name: Extract Xiaomi's prebuilt files from OS2.0.6.0.VLFCNXM
+        run: |
+          mkdir -p ~/img_OS2.0.6.0.VLFCNXM
+          cd ~/img_OS2.0.6.0.VLFCNXM
+          payload_extract -s -i "https://bkt-sgp-miui-ota-update-alisgp.oss-ap-southeast-1.aliyuncs.com/OS2.0.6.0.VLFCNXM/diting-ota_full-OS2.0.6.0.VLFCNXM-user-15.0-735fdaa693.zip" -X vendor_boot -o .
+          
+          mkdir ~/img_OS2.0.6.0.VLFCNXM/vendor_boot
+          cd ~/img_OS2.0.6.0.VLFCNXM/vendor_boot
+          mv ../vendor_boot.img ./
+          magiskboot unpack -h ./vendor_boot.img || :
+          cd vendor_ramdisk
+          magiskboot cpio ./ramdisk.cpio extract
+          cp ./lib/modules/sched-walt.ko ~/AnyKernel3/_modules_hyperos/_vendor_boot_modules/
+      - name: Patching dtb & dtbo
+        run: |
+          mkdir /tmp/patch_dtb
+          cd /tmp/patch_dtb
+          
+          mkdir _dtbs
+          cd _dtbs
+          cp ~/img_OS2.0.201.0.VMRCNXM/vendor_boot/dtb ./
+          dtb_img_splitted=$(dtp -i ./dtb | awk '{print $NF}')
+          ukee_dtb=
+          for dtb_file in $dtb_img_splitted; do
+                if [ "$(fdtget $dtb_file / model -ts)" == "Qualcomm Technologies, Inc. Ukee SoC" ]; then
+                        ukee_dtb="$dtb_file"
+                        break
+                fi
+          done
+          if [ -z "$ukee_dtb" ]; then
+            echo "Error: Can not found Ukee dtb file!"
+            exit 1
+          fi
+          cp "$ukee_dtb" /tmp/patch_dtb/dtb
+          
+          cd /tmp/patch_dtb
+          cp ~/AnyKernel3/modify_dtb_and_dtboimg.sh ./
+          cp ~/img_OS2.0.201.0.VMRCNXM/dtbo.img ./
+          
+          chmod +x modify_dtb_and_dtboimg.sh
+          ./modify_dtb_and_dtboimg.sh
+          
+          cp -f ./dtb ~/AnyKernel3/_dtb/dtb
+          cp -f ./dtbo-0.img ~/AnyKernel3/_dtb/dtbo-0.img
+          cp -f ./dtbo-1.img ~/AnyKernel3/_dtb/dtbo-1.img
+          
+          cd ~
+          rm -rf /tmp/patch_dtb
+      - name: Check out
+        uses: actions/checkout@v7
+        with:
+          ref: "melt-rebase_ci_test"
+      - name: Build vendor modules
+        run: |
+          cd $GITHUB_WORKSPACE
+          ./build_melt_ci.sh --noccache
+          cp -f ~/Melt_marble_out/vendor_boot_modules/*            ~/AnyKernel3/_modules_hyperos/_vendor_boot_modules/
+          cp -f ~/Melt_marble_out/vendor_dlkm_modules/*            ~/AnyKernel3/_modules_hyperos/_vendor_dlkm_modules/
+          cp -f ~/Melt_marble_out/alt_kernel_modules/ntsync.ko     ~/AnyKernel3/_modules_hyperos/_alt/ntsync.ko
+          cp -f ~/Melt_marble_out/alt_kernel_modules/camera.ko     ~/AnyKernel3/_modules_hyperos/_alt/OSS-camera.ko
+          cp -f ~/Melt_marble_out/alt_kernel_modules/ir-spi.ko     ~/AnyKernel3/_modules_hyperos/_alt/OSS-ir-spi.ko
+          cp -f ~/Melt_marble_out/alt_kernel_modules/msm_drm.ko    ~/AnyKernel3/_modules_hyperos/_alt/OSS-msm_drm.ko
+          cp -f ~/Melt_marble_out/alt_kernel_modules/sched-walt.ko ~/AnyKernel3/_modules_hyperos/_alt/OSS-sched-walt.ko
+      - name: Build NEW-qti_battery_charger_main.ko & OSS-msm_drm-2.ko & coresight placeholder modules
+        run: |
+          cd $GITHUB_WORKSPACE
+          echo "CONFIG_MARBLE_TOGGLE=y" >> arch/arm64/configs/marble_defconfig
+          echo "CONFIG_CORESIGHT_PLACEHOLDER=m" >> arch/arm64/configs/marble_defconfig
+          echo "CONFIG_CORESIGHT_AMBA_PLACEHOLDER=m" >> arch/arm64/configs/marble_defconfig
+          # display-drivers: Disable xiaomi layer handling
+          curl https://github.com/Pzqqt/android_kernel_xiaomi_marble/commit/f88fd49add125cb15c92c8c1c5fc78d42c1a4392.diff | git apply
+          # Reapply "disp: msm: sde: populate dsi/dp encoder before wb"
+          curl https://github.com/Pzqqt/android_kernel_xiaomi_marble/commit/1f9aad8ae1cf62b5aeb36034118d60557ff9134a.diff | git apply
+          ./build_melt_ci.sh --noccache --noclean
+          cp -f ~/Melt_marble_out/vendor_boot_modules/qti_battery_charger_main.ko      ~/AnyKernel3/_modules_hyperos/_alt/NEW-qti_battery_charger_main.ko
+          cp -f ~/Melt_marble_out/alt_kernel_modules/msm_drm.ko                        ~/AnyKernel3/_modules_hyperos/_alt/OSS-msm_drm-2.ko
+          cp -f ~/Melt_marble_out/alt_kernel_modules/coresight-clk-placeholder.ko      ~/AnyKernel3/_modules_hyperos/_vendor_dlkm_modules/
+          cp -f ~/Melt_marble_out/alt_kernel_modules/coresight-clk-amba-placeholder.ko ~/AnyKernel3/_modules_hyperos/_vendor_dlkm_modules/
+          git checkout -- .
+      - name: Build NEW2-qti_battery_charger_main.ko & LineageOS xiaomi_touch modules
+        run: |
+          cd $GITHUB_WORKSPACE
+          echo "CONFIG_MARBLE_TOGGLE=y" >> arch/arm64/configs/marble_defconfig
+          echo "CONFIG_MARBLE_TOGGLE_2=y" >> arch/arm64/configs/marble_defconfig
+          # Same as merge melt-rebase-los-xiaomi-touch branch
+          curl https://github.com/Pzqqt/android_kernel_xiaomi_marble/compare/617fd74a5da37ea930ac09a916e12ce4efdc7f23..melt-rebase-los-xiaomi-touch.diff | git apply
+          ./build_melt_ci.sh --noccache --noclean
+          cp -f ~/Melt_marble_out/vendor_boot_modules/qti_battery_charger_main.ko ~/AnyKernel3/_modules_hyperos/_alt/NEW2-qti_battery_charger_main.ko
+          cp -f ~/Melt_marble_out/alt_kernel_modules/xiaomi_touch.ko              ~/AnyKernel3/_modules_hyperos/_alt/xiaomi_touch_los/xiaomi_touch.ko
+          cp -f ~/Melt_marble_out/vendor_dlkm_modules/goodix_core.ko              ~/AnyKernel3/_modules_hyperos/_alt/xiaomi_touch_los/goodix_core.ko
+          cp -f ~/Melt_marble_out/vendor_dlkm_modules/panel_event_notifier.ko     ~/AnyKernel3/_modules_hyperos/_alt/xiaomi_touch_los/panel_event_notifier.ko
+          git checkout -- .
+      - name: Build kernel Image
+        run: |
+          cd $GITHUB_WORKSPACE
+          ./build_melt_ci.sh --noccache -- Image
+          cp ~/Melt_marble_out/Image* ~/AnyKernel3/
+      - name: Build kernel Image with KernelSU
+        run: |
+          cd ~
+          git clone https://github.com/tiann/KernelSU.git
+          cd $GITHUB_WORKSPACE
+          ./build_melt_ci.sh --noccache --noclean --ksu -- Image
+          cp ~/Melt_marble_out/Image_ksu* ~/AnyKernel3/
+      - name: Build kernel Image with KernelSU & susfs
+        run: |
+          cd ~
+          git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android12-5.10 --depth=1
+          cd $GITHUB_WORKSPACE
+          ./build_melt_ci.sh --noccache --susfs -- Image
+          cp ~/Melt_marble_out/Image_susfs* ~/AnyKernel3/
+      - name: Package AK3
+        run: |
+          cd ~/AnyKernel3
+          python3 ./make_package.py "ci-${SHORT_SHA}"
+      - name: Collect non-essential artifacts
+        run: |
+          mkdir -p ~/dist
+          
+          cp /tmp/*.xml ~/dist
+          cp ~/AnyKernel3/Image_vmlinux.symvers ~/dist
+      - name: Upload AK3 package
+        uses: actions/upload-artifact@v7
+        with:
+          path: ~/AnyKernel3/Melt-marble-ci-${{ env.SHORT_SHA }}-multi.zip
+          if-no-files-found: error
+          archive: false
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          path: ~/dist
+          if-no-files-found: error
