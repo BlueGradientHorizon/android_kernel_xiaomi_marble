@@ -579,6 +579,8 @@ drivers/soc/qcom/subsystem_sleep_stats.ko
 drivers/thermal/mi_thermal_interface.ko
 drivers/scsi/ufs/ufs_qcom.ko
 drivers/scsi/ufs/ufshcd-crypto-qti.ko
+drivers/hwtracing/google/coresight-clk-amba-placeholder.ko
+drivers/hwtracing/google/coresight-clk-placeholder.ko
 kernel/sched/walt/sched-walt.ko
 techpack/display/msm/msm_drm.ko
 techpack/camera/camera.ko

@@ -260,40 +260,34 @@ jobs:
           cp -f ~/Melt_marble_out/alt_kernel_modules/ir-spi.ko     ~/AnyKernel3/_modules_hyperos/_alt/OSS-ir-spi.ko
           cp -f ~/Melt_marble_out/alt_kernel_modules/msm_drm.ko    ~/AnyKernel3/_modules_hyperos/_alt/OSS-msm_drm.ko
           cp -f ~/Melt_marble_out/alt_kernel_modules/sched-walt.ko ~/AnyKernel3/_modules_hyperos/_alt/OSS-sched-walt.ko
-      - name: Build NEW-qti_battery_charger_main.ko
+      - name: Build NEW-qti_battery_charger_main.ko & OSS-msm_drm-2.ko & coresight placeholder modules
         run: |
           cd $GITHUB_WORKSPACE
           echo "CONFIG_MARBLE_TOGGLE=y" >> arch/arm64/configs/marble_defconfig
-          ./build_melt_ci.sh --noccache --noclean
-          cp -f ~/Melt_marble_out/vendor_boot_modules/qti_battery_charger_main.ko ~/AnyKernel3/_modules_hyperos/_alt/NEW-qti_battery_charger_main.ko
-          git checkout -- arch/arm64/configs/marble_defconfig
-      - name: Build NEW2-qti_battery_charger_main.ko
-        run: |
-          cd $GITHUB_WORKSPACE
-          echo "CONFIG_MARBLE_TOGGLE=y" >> arch/arm64/configs/marble_defconfig
-          echo "CONFIG_MARBLE_TOGGLE_2=y" >> arch/arm64/configs/marble_defconfig
-          ./build_melt_ci.sh --noccache --noclean
-          cp -f ~/Melt_marble_out/vendor_boot_modules/qti_battery_charger_main.ko ~/AnyKernel3/_modules_hyperos/_alt/NEW2-qti_battery_charger_main.ko
-          git checkout -- arch/arm64/configs/marble_defconfig
-      - name: Build OSS-msm_drm-2.ko
-        run: |
-          cd $GITHUB_WORKSPACE
+          echo "CONFIG_CORESIGHT_PLACEHOLDER=m" >> arch/arm64/configs/marble_defconfig
+          echo "CONFIG_CORESIGHT_AMBA_PLACEHOLDER=m" >> arch/arm64/configs/marble_defconfig
           # display-drivers: Disable xiaomi layer handling
           curl https://github.com/Pzqqt/android_kernel_xiaomi_marble/commit/f88fd49add125cb15c92c8c1c5fc78d42c1a4392.diff | git apply
           # Reapply "disp: msm: sde: populate dsi/dp encoder before wb"
           curl https://github.com/Pzqqt/android_kernel_xiaomi_marble/commit/1f9aad8ae1cf62b5aeb36034118d60557ff9134a.diff | git apply
           ./build_melt_ci.sh --noccache --noclean
-          cp -f ~/Melt_marble_out/alt_kernel_modules/msm_drm.ko ~/AnyKernel3/_modules_hyperos/_alt/OSS-msm_drm-2.ko
-          git checkout -- techpack/display
-      - name: Build xiaomi_touch modules of LineageOS team
+          cp -f ~/Melt_marble_out/vendor_boot_modules/qti_battery_charger_main.ko      ~/AnyKernel3/_modules_hyperos/_alt/NEW-qti_battery_charger_main.ko
+          cp -f ~/Melt_marble_out/alt_kernel_modules/msm_drm.ko                        ~/AnyKernel3/_modules_hyperos/_alt/OSS-msm_drm-2.ko
+          cp -f ~/Melt_marble_out/alt_kernel_modules/coresight-clk-placeholder.ko      ~/AnyKernel3/_modules_hyperos/_vendor_dlkm_modules/
+          cp -f ~/Melt_marble_out/alt_kernel_modules/coresight-clk-amba-placeholder.ko ~/AnyKernel3/_modules_hyperos/_vendor_dlkm_modules/
+          git checkout -- .
+      - name: Build NEW2-qti_battery_charger_main.ko & LineageOS xiaomi_touch modules
         run: |
           cd $GITHUB_WORKSPACE
+          echo "CONFIG_MARBLE_TOGGLE=y" >> arch/arm64/configs/marble_defconfig
+          echo "CONFIG_MARBLE_TOGGLE_2=y" >> arch/arm64/configs/marble_defconfig
           # Same as merge melt-rebase-los-xiaomi-touch branch
           curl https://github.com/Pzqqt/android_kernel_xiaomi_marble/compare/617fd74a5da37ea930ac09a916e12ce4efdc7f23..melt-rebase-los-xiaomi-touch.diff | git apply
           ./build_melt_ci.sh --noccache --noclean
-          cp -f ~/Melt_marble_out/alt_kernel_modules/xiaomi_touch.ko          ~/AnyKernel3/_modules_hyperos/_alt/xiaomi_touch_los/xiaomi_touch.ko
-          cp -f ~/Melt_marble_out/vendor_dlkm_modules/goodix_core.ko          ~/AnyKernel3/_modules_hyperos/_alt/xiaomi_touch_los/goodix_core.ko
-          cp -f ~/Melt_marble_out/vendor_dlkm_modules/panel_event_notifier.ko ~/AnyKernel3/_modules_hyperos/_alt/xiaomi_touch_los/panel_event_notifier.ko
+          cp -f ~/Melt_marble_out/vendor_boot_modules/qti_battery_charger_main.ko ~/AnyKernel3/_modules_hyperos/_alt/NEW2-qti_battery_charger_main.ko
+          cp -f ~/Melt_marble_out/alt_kernel_modules/xiaomi_touch.ko              ~/AnyKernel3/_modules_hyperos/_alt/xiaomi_touch_los/xiaomi_touch.ko
+          cp -f ~/Melt_marble_out/vendor_dlkm_modules/goodix_core.ko              ~/AnyKernel3/_modules_hyperos/_alt/xiaomi_touch_los/goodix_core.ko
+          cp -f ~/Melt_marble_out/vendor_dlkm_modules/panel_event_notifier.ko     ~/AnyKernel3/_modules_hyperos/_alt/xiaomi_touch_los/panel_event_notifier.ko
           git checkout -- .
       - name: Build kernel Image
         run: |
