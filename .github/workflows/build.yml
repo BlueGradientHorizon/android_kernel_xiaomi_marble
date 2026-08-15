@@ -1,6 +1,7 @@
 name: Build Kernel
 
 on:
+  workflow_dispatch: 
   push:
     branches: [melt-rebase_ci_test]
 
