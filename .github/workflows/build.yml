@@ -274,15 +274,18 @@ jobs:
       - name: Build OSS-msm_drm-2.ko
         run: |
           cd $GITHUB_WORKSPACE
-          git revert      2e8a8be608fea0e60fcd0473f3906bd073a4d3eb -n
-          git cherry-pick 2ba614ecbc55852652135c1c6114959da1235fd3 -n
+          # display-drivers: Disable xiaomi layer handling
+          curl https://github.com/Pzqqt/android_kernel_xiaomi_marble/commit/f88fd49add125cb15c92c8c1c5fc78d42c1a4392.diff | git apply
+          # Reapply "disp: msm: sde: populate dsi/dp encoder before wb"
+          curl https://github.com/Pzqqt/android_kernel_xiaomi_marble/commit/1f9aad8ae1cf62b5aeb36034118d60557ff9134a.diff | git apply
           ./build_melt_ci.sh --noccache --noclean
           cp -f ~/Melt_marble_out/alt_kernel_modules/msm_drm.ko ~/AnyKernel3/_modules_hyperos/_alt/OSS-msm_drm-2.ko
-          git revert --abort
+          git checkout -- techpack/display
       - name: Build xiaomi_touch modules of LineageOS team
         run: |
           cd $GITHUB_WORKSPACE
-          git merge melt-rebase-los-xiaomi-touch --no-commit
+          git fetch "${{ github.repositoryUrl }}" melt-rebase-los-xiaomi-touch
+          git merge FETCH_HEAD --no-commit
           ./build_melt_ci.sh --noccache --noclean
           cp -f ~/Melt_marble_out/alt_kernel_modules/xiaomi_touch.ko          ~/AnyKernel3/_modules_hyperos/_alt/xiaomi_touch_los/xiaomi_touch.ko
           cp -f ~/Melt_marble_out/vendor_dlkm_modules/goodix_core.ko          ~/AnyKernel3/_modules_hyperos/_alt/xiaomi_touch_los/goodix_core.ko
